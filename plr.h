@@ -39,6 +39,9 @@
 
 #include "fmgr.h"
 #include "funcapi.h"
+#if PG_VERSION_NUM >= 190000
+#include "nodes/execnodes.h"
+#endif
 #include "miscadmin.h"
 #if PG_VERSION_NUM >= 80400
 #include "windowapi.h"
@@ -65,6 +68,9 @@
 #include "utils/array.h"
 
 #include "utils/builtins.h"
+#if PG_VERSION_NUM >= 190000
+#include "utils/tuplestore.h"
+#endif
 
 #if PG_VERSION_NUM >= 80500
 #include "utils/bytea.h"
@@ -108,7 +114,7 @@
 #if (R_VERSION >= 132096) /* R_VERSION >= 2.4.0 */
 #include "Rembedded.h"
 #endif
-#if !defined(WIN32) && !defined(WIN64)
+#if !defined(WIN32) && !defined(WIN64) && !((defined(_WIN64)) && defined(_UCRT))
 #include "Rinterface.h"
 #else
 extern int R_SignalHandlers;
@@ -117,6 +123,94 @@ extern int R_SignalHandlers;
 #include "Rdefines.h"
 #if (R_VERSION < 133120) /* R_VERSION < 2.8.0 */
 #include "Rdevices.h"
+#endif
+
+/*
+ * Internal workaround to trivial change in R 4.6.0 file Rinlinedfuns.h
+ *
+ * The function Rf_isFrame has been removed; use Rf_isDataFrame instead.
+ * https://cran.r-project.org/bin/windows/base/NEWS.R-devel.html (to become R 4.6.0)
+ *
+ * Remove Rf_isFrame.
+ * https://github.com/wch/r-source/commit/ed5b0de133af71bc80ef110b738861457d00db44#diff-788284f8cfbf5d10400569f32a80fd157c22f994cf8f9f4de91df4289caa724dL922
+ *
+ */
+#if (R_SVN_REVISION >= 89488) /* R_VERSION >= 4.6.0 */
+#define IS_DATAFRAME(rval) isDataFrame(rval)
+#else
+#define IS_DATAFRAME(rval) isFrame(rval)
+#endif
+
+/*
+ * Internal workaround to a trivial change in R 4.4.1 file Rinternals.h
+ *
+ * (Removal of the code line "void (SET_TYPEOF)(SEXP x, int v);")
+ * Remove some non-API declarations from Rinternals.h
+ * https://github.com/wch/r-source/commit/23ce2dba89aa706a090277b10a294fa6dd474950#diff-f80fbe1c24fd75e44326c4169107c6db214b7188f2a16464ff38b248417164fdL1290
+ *
+ * The new function Rf_allocLang is now available. 
+ * This provides an alternative to the idiom of calling Rf_allocList followed by SET_TYPEOF.
+ * https://cran.r-project.org/bin/windows/base/NEWS.R-devel.html (R 4.4.1)
+ *
+ * Add allocLang to make it easier to avoid using SET_TYPEOF.
+ * https://github.com/wch/r-source/commit/6b72cd1b3f458896a6a3346f75313e8fbde4c2e0
+ *
+ */
+#if (R_SVN_REVISION >= 86737) /* R_VERSION >= 4.4.1 */
+#define SET_ALLOCLANG_SIZE(allocLang_size, s, t) \
+  do { \
+    t = s = PROTECT(allocLang(allocLang_size)); \
+  } while (0)
+#else /* R_VERSION < 4.4.1 */
+#define SET_ALLOCLANG_SIZE(allocLang_size, s, t) \
+  do { \
+    PROTECT(t = s = allocList(allocLang_size)); \
+    SET_TYPEOF(s, LANGSXP); \
+  } while (0)
+#endif
+
+/*
+ * Internal workarounds to
+ * trivial changeS in R 4.5.3/bleeding-edge files Defn.h and Rinternals.h
+ *
+ * (Switch to remove from end-user the view of the legacy API)
+ * Disable legacy non-API declarations.
+ * https://github.com/wch/r-source/commit/80a441bfda15ae27ee3897aa51d583cfbfd0c9c2
+ *
+ * (Puts ATTRIB and Rf_findVar in the legacy API group of functions)
+ * Allow separate contol of legacy functions and variables
+ * https://github.com/wch/r-source/commit/b2f593caa4cd76b74eaf3c72f228768e7df71809
+ *
+ * Changes in R 4.6.0. C-Level Facilities.
+ * In preparation for removing declarations
+ * and, where possible, hide this entry point ATTRIB.
+ * New function R_getVar.
+ * In most cases this can be used instead of the non-API function Rf_findVar.
+ * Seen 4/16/2026
+ * Changes in R-devel
+ * https://cran.r-project.org/bin/windows/base/NEWS.R-devel.html
+ *
+ * 5.9.12 Named objects and copying
+ * ANY_ATTRIB checks whether there are any attributes
+ * 6.21.1 Some API replacements for non-API entry points
+ * [Pause using] Rf_findVar. [Instead] use R_getVar.
+ * Seen 4/16/2026
+ * This manual is for R, version 4.5.3 (2026-03-11).
+ * https://cran.r-project.org/doc/manuals/r-release/R-exts.html
+ *
+ * (Moves ATTRIB and Rf_findVar from the file Rinternals.h to Defn.h.)
+ * Rearrange to allow turning off the tools:::warnNonAPI entry point declarations.
+ * https://github.com/wch/r-source/commit/906fe07b05e415c5425bcfe7024891c33cad6096
+ *
+ */
+#if (R_SVN_REVISION >= 89598) /* R_VERSION >= 4.5.3 */ 
+# define FINDVAR(sym, rho) R_getVar(sym, rho, TRUE)
+# define TYPEOF_CAR(dfcol) TYPEOF(CAR(dfcol))
+#else
+# define FINDVAR(sym, rho) findVar(sym, rho)
+# define TYPEOF_CAR(dfcol) TYPEOF(CAR(ATTRIB(dfcol)))
+# define ANY_ATTRIB(t) (ATTRIB(t) != R_NilValue)
+# define NO_ATTRIB(t) (! ANY_ATTRIB(t))
 #endif
 
 /* Restore the Postgres headers */

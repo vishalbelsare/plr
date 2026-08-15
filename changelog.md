@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.4.8] - 2025-05-17
+### Changed
+- Rename aggregate function "gamma" to "gamma1" to avoid clash with PG18 function "gamma"
+
+## [8.4.6] - 2023-08-01
+### Changed
+- PostgreSQL refactored AssertArg to Assert, make changes in the code to enable building
+- R version 4.1.3 and 4.2.3
+
 ## [8.4.5] - 2021-11-03
 ### Fixed
 - added sql upgrade path to fix 

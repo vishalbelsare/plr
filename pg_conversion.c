@@ -105,8 +105,7 @@ pg_scalar_get_r(Datum dvalue, Oid arg_typid, FmgrInfo arg_out_func)
 		 * Need to construct a call to
 		 * unserialize(rval)
 		 */
-		PROTECT(t = s = allocList(2));
-		SET_TYPEOF(s, LANGSXP);
+		SET_ALLOCLANG_SIZE(2, s, t);
 		SETCAR(t, install("unserialize"));
 		t = CDR(t);
 		SETCAR(t, obj);
@@ -337,7 +336,7 @@ SEXP
 pg_window_frame_get_r(WindowObject winobj, int argno, plr_function* function)
 {
 	char		buf[256];
-	SEXP		result, v, names, row_names;
+	SEXP		result, v, names = R_NilValue, row_names;
 	int64		i, num_frame_row = 0;
 	int			j, nc = 1, nc_effective = 1, df_colnum = 0;
 	Datum		dvalue;
@@ -346,11 +345,11 @@ pg_window_frame_get_r(WindowObject winobj, int argno, plr_function* function)
 	Oid			element_type = function->arg_typid[argno];
 	FmgrInfo	out_func = function->arg_out_func[argno];
 	/* for tuple arguments */
-	HeapTuple	tuple;
+	HeapTuple	tuple = NULL;
 	HeapTupleHeader	tuple_hdr;
 	Oid			tupType;
 	int32		tupTypmod;
-	TupleDesc	tupdesc;
+	TupleDesc	tupdesc = NULL;
 	/* for array arguments */
 	Oid			typelem = function->arg_elem[argno];
 	int16		typlen;
@@ -848,7 +847,7 @@ r_get_tuple(SEXP rval, plr_function *function, FunctionCallInfo fcinfo)
 	bool	   *isnull;
 	int			i, min_length;
 
-	if (!(isFrame(rval) || isNewList(rval) || isList(rval)))
+	if (!(IS_DATAFRAME(rval) || isNewList(rval) || isList(rval)))
 		elog(ERROR, "Only list alike is expected");
 
 	if (TYPEFUNC_COMPOSITE != get_call_result_type(fcinfo, &oid, &tupdesc))
@@ -937,7 +936,7 @@ get_trigger_tuple(SEXP rval, plr_function *function, FunctionCallInfo fcinfo, bo
 		return (Datum) 0;
 	}
 
-	if (isFrame(rval))
+	if (IS_DATAFRAME(rval))
 		nc = length(rval);
 	else if (isMatrix(rval))
 		nc = ncols(rval);
@@ -1001,9 +1000,9 @@ get_trigger_tuple(SEXP rval, plr_function *function, FunctionCallInfo fcinfo, bo
 		}
 		else
 		{
-			SEXP 	t;
+			SEXP 	t; 
 
-			for (t = ATTRIB(dfcol); t != R_NilValue; t = CDR(t))
+			for (t = dfcol; ANY_ATTRIB(t); t = CDR(t))
 			{
 				if(TAG(t) == R_LevelsSymbol)
 				{
@@ -1033,7 +1032,7 @@ get_trigger_tuple(SEXP rval, plr_function *function, FunctionCallInfo fcinfo, bo
 				if(isFactor(dfcol))
 				{
 					SEXP t;
-					for (t = ATTRIB(dfcol); t != R_NilValue; t = CDR(t))
+					for (t = dfcol; ANY_ATTRIB(t); t = CDR(t))
 					{
 						if(TAG(t) == R_LevelsSymbol)
 						{
@@ -1101,7 +1100,7 @@ get_tuplestore(SEXP rval, plr_function *function, FunctionCallInfo fcinfo, bool 
 				 errmsg("materialize mode required, but it is not "
 						"allowed in this context")));
 
-	if (isFrame(rval))
+	if (IS_DATAFRAME(rval))
 		nc = length(rval);
 	else if (isList(rval) || isNewList(rval))
 		nc = length(rval);
@@ -1135,7 +1134,7 @@ get_tuplestore(SEXP rval, plr_function *function, FunctionCallInfo fcinfo, bool 
 	/* OK, go to work */
 	rsinfo->returnMode = SFRM_Materialize;
 
-	if (isFrame(rval) || isList(rval) || isNewList(rval))
+	if (IS_DATAFRAME(rval) || isList(rval) || isNewList(rval))
 		rsinfo->setResult = get_frame_tuplestore(rval, function, attinmeta, per_query_ctx);
 	else if (isMatrix(rval))
 		rsinfo->setResult = get_matrix_tuplestore(rval, function, attinmeta, per_query_ctx);
@@ -1223,8 +1222,7 @@ get_scalar_datum(SEXP rval, Oid result_typid, FmgrInfo result_in_func, bool *isn
 		 * Need to construct a call to
 		 * serialize(rval, NULL)
 		 */
-		PROTECT(t = s = allocList(3));
-		SET_TYPEOF(s, LANGSXP);
+		SET_ALLOCLANG_SIZE(3, s, t);
 		SETCAR(t, install("serialize")); t = CDR(t);
 		SETCAR(t, rval); t = CDR(t);
 		SETCAR(t, R_NilValue);
@@ -1269,7 +1267,7 @@ get_array_datum(SEXP rval, plr_function *function, int col, bool *isnull)
 	if (objlen > 0)
 	{
 		/* two supported special cases */
-		if (isFrame(rval))
+		if (IS_DATAFRAME(rval))
 			return get_frame_array_datum(rval, function,  col, isnull);
 		else if (isMatrix(rval))
 			return get_md_array_datum(rval, 2 /* matrix is 2D */, function, col, isnull);
@@ -1347,11 +1345,11 @@ get_frame_array_datum(SEXP rval, plr_function *function, int col, bool *isnull)
 		 * factors and do the alternative assignment ONLY for them.
 		 * For the moment this locution seems to work correctly.
 		 */
-		if (ATTRIB(dfcol) == R_NilValue ||
-			TYPEOF(CAR(ATTRIB(dfcol))) != STRSXP)
+		if (NO_ATTRIB(dfcol) ||
+			TYPEOF_CAR(dfcol) != STRSXP)
 			PROTECT(obj = coerce_to_char(dfcol));
 		else
-			PROTECT(obj = coerce_to_char(CAR(ATTRIB(dfcol))));
+			PROTECT(obj = coerce_to_char(CAR(dfcol)));
 
 		if (j == 0)
 		{
@@ -2028,7 +2026,7 @@ get_frame_tuplestore(SEXP rval,
 	 * If we return a set, get number of rows by examining the first column.
 	 * Otherwise, stop at one row.
 	 */
-	if (isFrame(rval))
+	if (IS_DATAFRAME(rval))
 	{
 		PROTECT(dfcol = VECTOR_ELT(rval, 0));
 		nr = length(dfcol);
@@ -2056,7 +2054,7 @@ get_frame_tuplestore(SEXP rval,
 		{
 			SEXP 	t;
 
-			for (t = ATTRIB(dfcol); t != R_NilValue; t = CDR(t))
+			for (t = dfcol; ANY_ATTRIB(t); t = CDR(t))
 			{
 				if(TAG(t) == R_LevelsSymbol)
 				{
@@ -2089,7 +2087,7 @@ get_frame_tuplestore(SEXP rval,
 				 */
 				if (INTEGER_ELT(dfcol, i) != NA_INTEGER)
 				{
-					for (t = ATTRIB(dfcol); t != R_NilValue; t = CDR(t))
+					for (t = dfcol; ANY_ATTRIB(t); t = CDR(t))
 					{
 						if(TAG(t) == R_LevelsSymbol)
 						{
@@ -2134,7 +2132,6 @@ get_frame_tuplestore(SEXP rval,
 	UNPROTECT(1);
 
 	oldcontext = MemoryContextSwitchTo(per_query_ctx);
-	tuplestore_donestoring(tupstore);
 	MemoryContextSwitchTo(oldcontext);
 
 	return tupstore;
@@ -2197,7 +2194,6 @@ get_matrix_tuplestore(SEXP rval,
 	UNPROTECT(1);
 
 	oldcontext = MemoryContextSwitchTo(per_query_ctx);
-	tuplestore_donestoring(tupstore);
 	MemoryContextSwitchTo(oldcontext);
 
 	return tupstore;
@@ -2257,7 +2253,6 @@ get_generic_tuplestore(SEXP rval,
 	UNPROTECT(1);
 
 	oldcontext = MemoryContextSwitchTo(per_query_ctx);
-	tuplestore_donestoring(tupstore);
 	MemoryContextSwitchTo(oldcontext);
 
 	return tupstore;

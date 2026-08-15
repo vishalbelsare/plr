@@ -411,7 +411,6 @@ plr_environ(PG_FUNCTION_ARGS)
 	 */
 	ReleaseTupleDesc(tupdesc);
 
-	tuplestore_donestoring(tupstore);
 	rsinfo->setResult = tupstore;
 
 	/*
@@ -528,8 +527,7 @@ plr_get_raw(PG_FUNCTION_ARGS)
 	 * Need to construct a call to
 	 * unserialize(rval)
 	 */
-	PROTECT(t = s = allocList(2));
-	SET_TYPEOF(s, LANGSXP);
+	SET_ALLOCLANG_SIZE(2, s, t);
 	SETCAR(t, install("unserialize")); t = CDR(t);
 	SETCAR(t, obj);
 

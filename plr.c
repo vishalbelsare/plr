@@ -56,8 +56,6 @@ static bool	plr_be_init_done = false;
 /* namespace OID for the PL/R language handler function */
 static Oid plr_nspOid = InvalidOid;
 
-int R_SignalHandlers = 1;  /* Exposed in R_interface.h */
-
 /*
  * defines
  */
@@ -522,6 +520,7 @@ plr_init(void)
 	 * When initialization fails, R currently exits. Check the return
 	 * value anyway in case this ever gets fixed
 	 */
+	
 	if (!Rf_initEmbeddedR(rargc, rargv))
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -942,7 +941,7 @@ plr_func_handler(PG_FUNCTION_ARGS)
 		}
 		else
 		{
-			env = findVar(install(internal_env), R_GlobalEnv);
+			env = FINDVAR(install(internal_env), R_GlobalEnv);
 			if (R_UnboundValue == env)
 				elog(ERROR, "%s window frame environment cannot be found in R_GlobalEnv", internal_env);
 		}
@@ -1625,7 +1624,7 @@ plr_convertargs(plr_function *function, Datum *arg, bool *argnull, FunctionCallI
 	int		c = 0;
 	SEXP	rargs,
 			t,
-			el;
+			el = R_NilValue;
 
 #ifdef HAVE_WINDOW_FUNCTIONS
 	if (function->iswindow)
@@ -1762,7 +1761,7 @@ plr_convertargs(plr_function *function, Datum *arg, bool *argnull, FunctionCallI
 			}
 			else
 			{
-				lst = findVar(install(PLR_WINDOW_FRAME_NAME), rho);
+				lst = FINDVAR(install(PLR_WINDOW_FRAME_NAME), rho);
 				if (R_UnboundValue == lst)
 					elog(ERROR, "%s list with window frame data cannot be found in R_GlobalEnv", PLR_WINDOW_FRAME_NAME);
 				for (i = 0; i < function->nargs; i++, t = CDR(t))

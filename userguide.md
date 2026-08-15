@@ -20,7 +20,7 @@
 
 ####   6.1. [Normal Support](#normal-support)
 
-####   6.2. [RPostgreSQL Compatibility Support](#rpostgresql)
+####   6.2. [RPostgreSQL Compatibility Support](#rpostgresql-support)
 
 #### 7. [PostgreSQL Support Functions](#postgresql-support)
 
@@ -46,7 +46,7 @@
 
 
 
-## Overview
+## Overview <a name='overview'></a>
 
 PL/R is a loadable procedural language that enables you to write PostgreSQL functions and triggers in the
 R programming language<sup>1</sup>. PL/R offers most (if not all) of the capabilities a function writer has in the R
@@ -64,8 +64,7 @@ new data types.
 
 1. [http://www.r-project.org/](http://www.r-project.org/)
 
-
-## Installation
+## Installation <a name='installation'></a>
 
 All of the following presume that you have installed R before starting.
 From within R you can find R_HOME with ```R.home(component="home")```
@@ -78,7 +77,7 @@ This presumes you installed PostgreSQL using the PGDG repositories found [here](
 yum install plr-nn
 ```
 
-Where nn is the major version number such as 13 for PostgreSQL version 13.x
+Where nn is the major version number such as 18 for PostgreSQL version 18.x
 
 To set R_HOME for use by PostgreSQL.
 
@@ -140,8 +139,8 @@ You may explicitly include the path of pg_config to `PATH`, such as
 
 ```bash
 cd plr
-PATH=/usr/pgsql-13/bin/:$PATH; USE_PGXS=1 make
-echo "PATH=/usr/pgsql-13/bin/:$PATH; USE_PGXS=1 make install" | sudo sh
+PATH=/usr/pgsql-18/bin/:$PATH; USE_PGXS=1 make
+echo "PATH=/usr/pgsql-18/bin/:$PATH; USE_PGXS=1 make install" | sudo sh
 ```
 If you want to use git to pull the repository, run the following command before the make command:
 
@@ -161,8 +160,8 @@ USE_PGXS=1 make install
 
 In MSYS:
 ```
-export R_HOME=/c/progra~1/R/R-4.1.0
-export PATH=$PATH:/c/progra~1/PostgreSQL/13/bin
+export R_HOME=/c/progra~1/R/R-4.6.0
+export PATH=$PATH:/c/progra~1/PostgreSQL/18/bin
 USE_PGXS=1 make
 USE_PGXS=1 make install
 ```
@@ -173,22 +172,51 @@ If R is built and installed using a sub-architecture, as explained in the sectio
 https://cran.r-project.org/doc/manuals/r-release/R-admin.html
 for example, in an R
 ```
-R-x.y.z for Windows (32/64 bit)
+R-x.y.z for Windows (32/64 bit) and version 4.1.3 or earlier
+R-x.y.z for Windows (64 bit) and version 4.2.0 or later
 ```
 that has been downloaded (and installed) from
-[https://cran.r-project.org/bin/windows/base/](https://cran.r-project.org/bin/windows/base/)
+[https://cran.r-project.org/bin/windows/base/old/](https://cran.r-project.org/bin/windows/base/old/)
 
 then, include the environment variable R_ARCH.
 For example R_ARCH=/x64 (or R_ARCH=/i386 as appropriate):
 ```
-export R_HOME=/c/progra~1/R/R-4.0.4
-export PATH=$PATH:/c/progra~1/PostgreSQL/13/bin
+export R_HOME=/c/progra~1/R/R-4.6.0
+export PATH=$PATH:/c/progra~1/PostgreSQL/18/bin
 export R_ARCH=/x64
 USE_PGXS=1 make
 USE_PGXS=1 make install
 ```
+```
+export R_HOME=/c/progra~1/R/R-4.1.3
+export PATH=$PATH:/c/progra~1/PostgreSQL/18/bin
+export R_ARCH=/i386
+USE_PGXS=1 make
+USE_PGXS=1 make install
+```
+Note, R 4.2.0 and greater is not "single architecture."
+It is still "subarchitecture" with only 64bit.
+32bit has been removed.
 
+### Compiling from source and using R for Windows 4.3.0 and later
 
+PL/R that uses R for Windows 4.3.0 and later can no longer be compiled using Microsoft Visual Studio.
+One may read the following.
+
+Status: CLOSED WONTFIX
+[Bug 18544 - private_data_c Visual Studio 2022 R-4.3.0 Complex.h(81,21): syntax error: missing ';' before identifier 'private_data_c'](https://bugs.r-project.org/show_bug.cgi?id=18544)
+
+[The new definition does not work with MSVC compilers because they don't support the C99 _Complex type](https://learn.microsoft.com/en-us/cpp/c-runtime-library/complex-math-support?view=msvc-170)
+
+[C Complex Numbers in C++?](https://stackoverflow.com/questions/10540228/c-complex-numbers-in-c)
+
+Instead, for PL/R that uses R for Windows 4.3.0 and later, compile PL/R with MSYS2(UCRT64 or MINGW32).
+
+### Compiling from source using the meson build system
+
+Needed is the PostgreSQL version 16 or later source code, libR installed, PATH set, and R_HOME set. One passes -DR_HOME=value to the `meson setup` command.
+
+Alternately, needed are the PostgreSQL pre-compiled binaries. PostgreSQL can be a version lower than 16. Also needed are the libR installed, libpq installed, libpostgres configured and installed, PATH set, and R_HOME set.  One passes -DR_HOME=value and -DPG_HOME=value2 to the `meson setup` command.
 
 ### Installing from a Pre-Built "plr"
 
@@ -197,19 +225,31 @@ changing:
 
 In Windows environment (generally):
 ```
-R_HOME=C:\Progra~1\R\R-4.1.0
+R_HOME=C:\Progra~1\R\R-4.6.0
 Path=%PATH%;%R_HOME%\x64\bin
 ```
 
 #### Detailed Windows Environment
 
-In a Windows environment, with a PL/R compiled
-using Microsoft Visual Studio [https://github.com/postgres-plr/plr/releases/latest](https://github.com/postgres-plr/plr/releases/latest),
-with a PostgreSQL compiled 
+If wanting to install R 4.2.0 or later on a system older than Windows 10, then the following applies.
+
+In R 4.2.0 or greater, support for 32-bit builds has been dropped.
+
+R 4.2.0 and later uses UTF-8 as the native encoding on recent Windows systems
+(at least Windows 10 version 1903, Windows Server 2022 or Windows Server 1903).
+As a part of this change, R 4.2.0 and later uses UCRT as the C runtime.
+UCRT should be installed manually on systems older than Windows 10 or Windows Server 2016 before installing R.
+
+This is documented at `CHANGES IN R 4.2.0`
+https://cran.r-project.org/doc/manuals/r-release/NEWS.html
+
+Acquire UCRT through `Windows Update` or at the following URL query result:
+https://www.google.com/search?q=download+UCRT
+
+In a Windows environment, with a PL/R compiled using MSYS2(UCRT64 or MINGW32) or Microsoft Visual Studio
+[https://github.com/postgres-plr/plr/releases/latest](https://github.com/postgres-plr/plr/releases/latest), with a PostgreSQL compiled
 with Microsoft Visual Studio [https://www.enterprisedb.com/downloads/postgres-postgresql-downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads),
-and an R acquired 
-from [https://cran.r-project.org/bin/windows/base/](https://cran.r-project.org/bin/windows/base/)
-do the following.
+and an R acquired from CRAN [https://cran.r-project.org/bin/windows/base/](https://cran.r-project.org/bin/windows/base/) do the following.
 
 
 
@@ -218,17 +258,18 @@ do the following.
 
 Download and install PostgreSQL compiled with Microsoft Visual Studio
 [https://www.enterprisedb.com/downloads/postgres-postgresql-downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
-Download PL/R compiled using Microsoft Visual Studio 
+For R versions earlier than 4.3.0 Download PL/R compiled using Microsoft Visual Studio
+For R versions greather or equal to 4.3.0 Download PL/R compiled using MSYS2 (UCRT64 or MINGW32)
 [https://github.com/postgres-plr/plr/releases/latest](https://github.com/postgres-plr/plr/releases/latest)
 
 Unzip the plr.zip file into a folder, that is called the "unzipped folder".
-If your installation of PostgreSQL had been installed into "C:\Program Files\PostgreSQL\13",
-then from the unzipped PL/R folder, place the following 
+If your installation of PostgreSQL had been installed into "C:\Program Files\PostgreSQL\16",
+then from the unzipped PL/R folder, place the following
 
- * .sql files and the plr.control file, all found in the "share\extension" folder 
-   into "C:\Program Files\PostgreSQL\13\share\extension" folder.
+ * .sql files and the plr.control file, all found in the "share\extension" folder
+   into "C:\Program Files\PostgreSQL\16\share\extension" folder.
 
- * plr.dll file found in the "lib" folder into "C:\Program Files\PostgreSQL\13\lib" folder.
+ * plr.dll file found in the "lib" folder into "C:\Program Files\PostgreSQL\16\lib" folder.
 
 
 
@@ -244,7 +285,7 @@ and choose [ ] "Save version number in registry".
 At a Command Prompt run (and may have to be an Administrator Command Prompt)
 and using wherever your path to R may be, do:
 ```
-setx R_HOME "C:\Program Files\R\R-4.1.0" /M
+setx R_HOME "C:\Program Files\R\R-4.6.0" /M
 ```
 ### Optionally:
 
@@ -253,7 +294,7 @@ and choose [ ] "Save version number in registry".
 Choose Control Panel -> System -> advanced system settings -> Environment Variables button.
 In the "System variables" area, create the System Variable, called R_HOME.
 Give R_HOME the value of the PATH to the R home,
-for example (without quotes) "C:\Program Files\R\R-4.1.0".
+for example (without quotes) "C:\Program Files\R\R-4.6.0".
 
 If you forgot to set the R_HOME environment variable (by any method),
 then (eventually) you may get this error:
@@ -268,19 +309,25 @@ HINT:  R_HOME must be defined in the environment of the user that starts the pos
 
 ### Third:
 
+
+
 Put the R.dll in your PATH. This is required, so do the following:
 Control Panel -> System -> Advanced System Settings -> Environment Variables button
 In the "System variables" area, choose the System Variable, called "Path".
 Click on the Edit button.
 Add the R.dll folder to the "Path".
-For example (without quotes), add "C:\Program Files\R\R-4.1.0\bin\x64" 
-or "C:\Program Files\R\R-4.1.0\bin\i386".
+For example (without quotes), add "C:\Program Files\R\R-4.6.0\bin\x64" or
+or "C:\Program Files\R\R-4.1.3\bin\i386".
 If you are running R version 2.11 or earlier on Windows, the R.dll folder is different;
 instead of "bin\i386" or "bin\x64", it is "bin".
 Note, a 64bit compiled PL/R can only run with a 64bit compiled PostgreSQL.
 A 32bit compiled PL/R can only run with a 32bit compiled PostgreSQL.
 The last 32bit PostgreSQL was version ten(10) from  [https://www.enterprisedb.com/downloads/postgres-postgresql-downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads).
-Of course, you, yourself, may yourself, compile a 32bit PostgreSQL using Microsoft Visual Studio.
+Of course, you, yourselfm may try to compile a 32bit PostgreSQL using Microsoft Visual Studio.
+
+Note, R 4.2.0 and greater is not "single architecture."
+It is still "subarchitecture" with only 64bit.
+32bit has been removed.
 
 ### Fourth:
 
@@ -289,21 +336,21 @@ Restart the PostgreSQL cluster, do:
 At a Command Prompt run (and you may have to be in an Administrator Command Prompt):
 Use the service name of whatever service your PostgreSQL is running under.
 ```
-net stop   postgresql-x64-13
+net stop postgresql-x64-18
 ```
 Alternately, do the following:
 Control Panel -> Administrative Tools -> Services
-Find postgresql-x64-13 (or whatever service your PostgreSQL is running under).  
+Find postgresql-x64-18 (or whatever service your PostgreSQL is running under).
 Right click and choose "Stop"
 
 At a Command Prompt run (and you may have to be in an Administrator Command Prompt):
 Use the service name of whatever service your PostgreSQL is running under.
 ```
-net start   postgresql-x64-13
+net start postgresql-x64-18
 ```
 Alternately, do the following:
 Control Panel -> Administrative Tools -> Services
-Find postgresql-x64-13 (or whatever service your PostgreSQL is running under).  
+Find postgresql-x64-18 (or whatever service your PostgreSQL is running under).
 Right click and choose "Start"
 
 
@@ -348,9 +395,8 @@ DROP EXTENSION plr;
 **Tip** If a language is installed into `template1`, all subsequently created databases will have the
 language installed automatically.
 
-**Tip** In addition to the documentation, the plr.out.* files in the plr/expected folder 
+**Tip** In addition to the documentation, the plr.out.* files in the plr/expected folder
 are a good source of usage examples.
-
 
 ## Functions and Arguments <a name="functions"></a>
 
@@ -1029,7 +1075,7 @@ SELECT * FROM pg_available_extensions WHERE name = 'plr';
 
  name | default_version | installed_version |                            comment
 ------+-----------------+-------------------+----------------------------------------------------------------
- plr  | 8.4.2           | 8.4.2             | load R interpreter and execute R script from within a database
+ plr  | 8.4.7           | 8.4.7             | load R interpreter and execute R script from within a database
 (1 row)
 ```
 
@@ -1044,18 +1090,19 @@ SELECT r_version();
  (platform,x86_64-w64-mingw32)
  (arch,x86_64)
  (os,mingw32)
+ (crt,"ucrt")
  (system,"x86_64, mingw32")
  (status,"")
  (major,4)
- (minor,1.0)
- (year,2021)
- (month,05)
- (day,18)
- ("svn rev",80317)
+ (minor,4.1)
+ (year,2024)
+ (month,06)
+ (day,14)
+ ("svn rev",86737)
  (language,R)
- (version.string,"R version 4.1.0 (2021-05-18)")
- (nickname,"Camp Pontanezen")
-(14 rows)
+ (version.string,"R version 4.4.1 (2024-06-14 ucrt)")
+ (nickname,"Race for Your Life")
+(15 rows)
 ```
 
 `install_rcmd(text R_code)`
@@ -1297,8 +1344,9 @@ case since no `PARTITION` is explicitly defined, the `PARTITION` is the entire s
 inner sub-select.
 
 In these next examples, use of the variables `arg1`,`farg1`,`fnumrows`, and `prownum` are illustrated in detail.
-The window frame is saved into a dedicated R environment. 
-[R Environments] (https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Environment-objects). 
+The window frame is saved into a dedicated [R Environment](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Environment-objects).
+
+
 
 Variables `farg#` and only `farg1` in these simple examples.
 The `foo` table that we created (above) is reused here.
@@ -1418,7 +1466,7 @@ FROM test_data ORDER BY fyear, eps;
 For optimization reasons, constant expressions are not expanded.
 
 The corresponding `farg2`  in the `Winsorize` example above is passes with NULL value.
-Compatibility reasons exist, so that other arguments are not shifted, in functions users 
+Compatibility reasons exist, so that other arguments are not shifted, in functions users
 created with previous versions of PL/R.
 
 
@@ -1630,7 +1678,7 @@ pg.throwlog(''Hello, world!'')
 ```
 Output is seen in the PostgreSQL log:
 ```text
-2021-03-18 04:47:15.086 UTC [47940] LOG:  Hello, world!
+2022-07-20 20:05:04.017 UTC [43852] LOG:  Hello, world!
 ```
 ```postgresql
 DO LANGUAGE plr '
@@ -1649,16 +1697,14 @@ DO
 
 In PostgreSQL version eleven(11) or later, is the feature of Stored Procedures.
 These work in any operating system and in any platform.
-
-Unlike functions that return a value, procedures do not return a value.
-
 ```postgresql
 SELECT version();
                           version
 ------------------------------------------------------------
  PostgreSQL 11.0, compiled by Visual C++ build 1914, 64-bit
 (1 row)
-
+```
+```postgresql
 SELECT current_setting('server_version_num')::int;
 
  current_setting
@@ -1666,7 +1712,7 @@ SELECT current_setting('server_version_num')::int;
           110000
 (1 row)
 ```
-
+Unlike functions that return a value, procedures do not return a value.
 ```postgresql
 CREATE TABLE tbl(val integer);
 
@@ -1689,7 +1735,7 @@ SELECT * FROM tbl;
 ## Transactions in Stored Procedures <a name='transactions-in-stored-procedures'></a>
 
 This feature has the same PostgreSQL version
-requirement as seen in `Stored Procedures`.
+requirement as seen in [Stored Procedures](#stored-procedures).
 Also PL/R version 8.4.2 (or later) is required.
 
 ```postgresql
@@ -1699,7 +1745,7 @@ CREATE OR REPLACE PROCEDURE transaction_test1() AS '
   for(i in 0:9)
   {
     pg.spi.exec(paste(''INSERT INTO test1 (a) VALUES ('', i, '');''))
-    if (i %% 2 == 0) 
+    if (i %% 2 == 0)
     {
       pg.spi.commit()
     } else {
@@ -1712,13 +1758,13 @@ CALL transaction_test1();
 
 SELECT * FROM test1;
 
- a | b 
+ a | b
 ---+---
- 0 | 
- 2 | 
- 4 | 
- 6 | 
- 8 | 
+ 0 |
+ 2 |
+ 4 |
+ 6 |
+ 8 |
 (5 rows)
 ```
 
@@ -1730,26 +1776,26 @@ PL/R version 8.4.2 (or later) is required.
 
 ```postgresql
 CREATE OR REPLACE FUNCTION fast_win_frame(r int, t record) RETURNS bool AS '
-identical(parent.frame(), .GlobalEnv) && 
+identical(parent.frame(), .GlobalEnv) &&
   pg.throwerror(''Parent env is global'')
-exists(''plr_window_frame'', parent.frame(), inherits=FALSE) || 
+exists(''plr_window_frame'', parent.frame(), inherits=FALSE) ||
   pg.throwerror(''No window frame data found'')
 r == farg2[[prownum, 2]][3]
 ' LANGUAGE plr WINDOW;
 
 SELECT s.r, s.p, fast_win_frame(NULLIF(r,4), (s.r, s.q)) OVER w
-FROM (SELECT r, r % 2 AS p, array_fill(CASE WHEN r=7 THEN 77 ELSE r END, ARRAY[3]) AS q 
+FROM (SELECT r, r % 2 AS p, array_fill(CASE WHEN r=7 THEN 77 ELSE r END, ARRAY[3]) AS q
       FROM generate_series(1,10) r) s
-WINDOW w AS (PARTITION BY p ORDER BY r ROWS BETWEEN UNBOUNDED PRECEDING AND 
+WINDOW w AS (PARTITION BY p ORDER BY r ROWS BETWEEN UNBOUNDED PRECEDING AND
                                                     UNBOUNDED FOLLOWING)
 ORDER BY s.r;
 
- r  | p | fast_win_frame 
+ r  | p | fast_win_frame
 ----+---+----------------
   1 | 1 | t
   2 | 0 | t
   3 | 1 | t
-  4 | 0 | 
+  4 | 0 |
   5 | 1 | t
   6 | 0 | t
   7 | 1 | f
@@ -1760,7 +1806,7 @@ ORDER BY s.r;
 ```
 
 
-## License
+## License <a name='license'></a>
 
 License: GPL version 2 or newer. http://www.gnu.org/copyleft/gpl.html
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General
